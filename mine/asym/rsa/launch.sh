@@ -191,7 +191,7 @@ if (($? != 0));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
 
 rsa_full() {
 for ((j = 0; j < $nb_type - 1; ++j));do
-sh launch.sh ${test_type[$j]} $numbits $nb_tests
+bash launch.sh ${test_type[$j]} $numbits $nb_tests
 done
 ft_exit
 }
