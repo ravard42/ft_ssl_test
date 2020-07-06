@@ -22,6 +22,7 @@ if (($? == 0));then
 echo -e "${KGRN}ft_ssl successfully built and ready to be tested$KNRM\n"
 else
 echo -e "${KRED}error in ft_ssl compilation      $KNRM\n"
+exit
 fi
 
 cp $make_dir/ft_ssl ./ 
@@ -34,18 +35,27 @@ exit
 }
 
 
+#note on test list below:
+# in tests (0-4) are constructed on -text option output diff. 
+#	text function is called just after read_rsak has loaded the tab in t_varint *rsak.
+#	so we only test the ASN1 Decoding process here (and -passin decryption)
+# pipe tests (5-9) are constructed on key ASN1_PEM|DER|DES-ENC diff.
+#	we do the same that in tests in a first place 
+#	and after we re-encode (re-encrypt for -passout) with write_rsak.
+#	
+
 #>>>>> INPUT PARSER >>>>>
 # available tests
-test_type[0]='rsa_inprider'
-test_type[1]='rsa_inpripem'
-test_type[2]='rsa_inprienc'
-test_type[3]='rsa_inpubder'
-test_type[4]='rsa_inpubpem'
-test_type[5]='rsa_pipepubder'
-test_type[6]='rsa_pipepubpem'
-test_type[7]='rsa_pipeprider'
-test_type[8]='rsa_pipepripem'
-test_type[9]='rsa_desout'
+test_type[0]='rsa_inpubpem'
+test_type[1]='rsa_inpubder'
+test_type[2]='rsa_inpripem'
+test_type[3]='rsa_inprider'
+test_type[4]='rsa_indes'
+test_type[5]='rsa_pipepubpem'
+test_type[6]='rsa_pipepubder'
+test_type[7]='rsa_pipepripem'
+test_type[8]='rsa_pipeprider'
+test_type[9]='rsa_pipedes'
 test_type[10]='rsa_check'
 test_type[11]='rsa_full'
 nb_type=12
@@ -67,60 +77,20 @@ ft_exit
 fi
 
 # $2 : size of modulus in bits
+err512="don't use key size < 512"
 numbits=$2
+if ((numbits < 512));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
 # $3 : numb of tests
 nb_tests=$3
 #<<<<< INPUT PARSER <<<<<<
 
 #>>>>> TEST FUNCTIONS >>>>>>
 
-err512="don't use key size < 512"
-
-rsa_inprider() {
-openssl genrsa $numbits | openssl rsa -outform DER -out prider.ref
-if (($? != 0));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
-
-openssl rsa -in prider.ref -inform DER -text -noout > text.openssl
-./ft_ssl rsa -in prider.ref -inform DER -text -noout > text.ft_ssl
-
-
-diff text.openssl text.ft_ssl
-}
-
-rsa_inpripem() {
-openssl genrsa -out pripem.ref $numbits
-if (($? != 0));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
-
-openssl rsa -in pripem.ref -text -modulus -noout > text.openssl
-./ft_ssl rsa -in pripem.ref -text -modulus -noout > text.ft_ssl
-
-diff text.openssl text.ft_ssl
-}
-
-rsa_inprienc() {
-pw="4charmin$RANDOM"
-openssl genrsa $numbits | openssl rsa -des -passout pass:$pw -out prienc.ref
-if (($? != 0));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
-
-openssl rsa -in prienc.ref -passin pass:$pw  -text -noout > text.openssl
-./ft_ssl rsa -in prienc.ref -passin pass:$pw  -text -noout > text.ft_ssl
-
-diff text.openssl text.ft_ssl
-}
-
-rsa_inpubder() {
-openssl genrsa $numbits | openssl rsa -outform DER -pubout -out pubder.ref
-if (($? != 0));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
-
-openssl rsa -in pubder.ref -inform DER -pubin -text -noout > text.openssl
-./ft_ssl rsa -in pubder.ref -inform DER -pubin -text -noout > text.ft_ssl
-
-diff text.openssl text.ft_ssl
-}
+err_genrefkey="and error occured in ${test_type[$id]} reference key creation"
 
 rsa_inpubpem() {
 openssl genrsa $numbits | openssl rsa -pubout -out pubpem.ref
-if (($? != 0));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
+if (($? != 0));then echo -e "${KRED}${err_genrefkey}${KNRM}"; ft_exit; fi
 
 openssl rsa -in pubpem.ref -pubin -text -modulus -noout > text.openssl
 ./ft_ssl rsa -in pubpem.ref -pubin -text -modulus -noout > text.ft_ssl
@@ -128,52 +98,86 @@ openssl rsa -in pubpem.ref -pubin -text -modulus -noout > text.openssl
 diff text.openssl text.ft_ssl
 }
 
-rsa_pipepubder() {
+rsa_inpubder() {
+openssl genrsa $numbits | openssl rsa -outform DER -pubout -out pubder.ref
+if (($? != 0));then echo -e "${KRED}${err_genrefkey}${KNRM}"; ft_exit; fi
+
+openssl rsa -in pubder.ref -inform DER -pubin -text -noout > text.openssl
+./ft_ssl rsa -in pubder.ref -inform DER -pubin -text -noout > text.ft_ssl
+
+diff text.openssl text.ft_ssl
+}
+
+rsa_inpripem() {
 openssl genrsa -out pripem.ref $numbits
-if (($? != 0));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
+if (($? != 0));then echo -e "${KRED}${err_genrefkey}${KNRM}"; ft_exit; fi
 
-openssl rsa -in pripem.ref -pubout -outform DER -out pubder.ref
-./ft_ssl rsa -pubin -inform DER -in pubder.ref -pubout -outform DER -out pubder.ft_ssl
-# PRIV IN
-#./ft_ssl rsa -in pripem.ref -pubout -outform DER -out pubder.ft_ssl
+openssl rsa -in pripem.ref -text -modulus -noout > text.openssl
+./ft_ssl rsa -in pripem.ref -text -modulus -noout > text.ft_ssl
 
-diff pubder.ref pubder.ft_ssl
+diff text.openssl text.ft_ssl
+}
+
+rsa_inprider() {
+openssl genrsa $numbits | openssl rsa -outform DER -out prider.ref
+if (($? != 0));then echo -e "${KRED}${err_genrefkey}${KNRM}"; ft_exit; fi
+
+openssl rsa -in prider.ref -inform DER -text -noout > text.openssl
+./ft_ssl rsa -in prider.ref -inform DER -text -noout > text.ft_ssl
+
+diff text.openssl text.ft_ssl
+}
+
+rsa_indes() {
+pw="4charmin$RANDOM"
+openssl genrsa $numbits | openssl rsa -des -passout pass:$pw -out prienc.ref
+if (($? != 0));then echo -e "${KRED}${err_genrefkey}${KNRM}"; ft_exit; fi
+
+openssl rsa -in prienc.ref -passin pass:$pw  -text -noout > text.openssl
+./ft_ssl rsa -in prienc.ref -passin pass:$pw  -text -noout > text.ft_ssl
+
+diff text.openssl text.ft_ssl
 }
 
 rsa_pipepubpem() {
-openssl genrsa -out pripem.ref $numbits
-if (($? != 0));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
-openssl rsa -in pripem.ref -pubout -out pubpem.ref
+openssl genrsa $numbits | openssl rsa -pubout -out pubpem.ref
+if (($? != 0));then echo -e "${KRED}${err_genrefkey}${KNRM}"; ft_exit; fi
 
 ./ft_ssl rsa -pubin -in pubpem.ref -pubout -out pubpem.ft_ssl
-# PRIV IN
-#./ft_ssl rsa -in pripem.ref -pubout -out pubpem.ft_ssl
 
 diff pubpem.ref pubpem.ft_ssl
 }
 
-rsa_pipeprider() {
-openssl genrsa $numbits | openssl rsa -outform DER -out prider.ref
-if (($? != 0));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
+rsa_pipepubder() {
+openssl genrsa $numbits | openssl rsa -pubout -outform DER -out pubder.ref
+if (($? != 0));then echo -e "${KRED}${err_genrefkey}${KNRM}"; ft_exit; fi
 
-./ft_ssl rsa -inform DER -in prider.ref -outform DER -out prider.ft_ssl
+./ft_ssl rsa -pubin -inform DER -in pubder.ref -pubout -outform DER -out pubder.ft_ssl
 
-diff prider.ref prider.ft_ssl
+diff pubder.ref pubder.ft_ssl
 }
 
 rsa_pipepripem() {
 openssl genrsa -out pripem.ref $numbits
-if (($? != 0));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
+if (($? != 0));then echo -e "${KRED}${err_genrefkey}${KNRM}"; ft_exit; fi
 
 ./ft_ssl rsa -in pripem.ref -out pripem.ft_ssl
 
 diff pripem.ref pripem.ft_ssl
 }
 
+rsa_pipeprider() {
+openssl genrsa $numbits | openssl rsa -outform DER -out prider.ref
+if (($? != 0));then echo -e "${KRED}${err_genrefkey}${KNRM}"; ft_exit; fi
 
-rsa_desout() {
+./ft_ssl rsa -inform DER -in prider.ref -outform DER -out prider.ft_ssl
+
+diff prider.ref prider.ft_ssl
+}
+
+rsa_pipedes() {
 openssl genrsa -out pripem.ref $numbits
-if (($? != 0));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
+if (($? != 0));then echo -e "${KRED}${err_genrefkey}${KNRM}"; ft_exit; fi
 
 pw="4charmin$RANDOM"
 ./ft_ssl rsa -in pripem.ref -des -passout pass:$pw | openssl rsa -passin pass:$pw -out pripem.ft_ssl
@@ -183,7 +187,7 @@ diff pripem.ref pripem.ft_ssl
 
 rsa_check() {
 openssl genrsa -out pripem.ref $numbits
-if (($? != 0));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
+if (($? != 0));then echo -e "${KRED}${err_genrefkey}${KNRM}"; ft_exit; fi
 
 ./ft_ssl rsa -in pripem.ref -check -noout | grep ok > /dev/null
 

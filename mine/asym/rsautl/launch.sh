@@ -35,18 +35,21 @@ exit
 
 #>>>>> INPUT PARSER >>>>>
 # available tests
+# NB enc dec algo
+#	enc <-> modular_square-and-multiply (small exponent : e = 0x10001)
+#	dec <-> Chinese remainder algorithm based on the CRT (big exponent d)
 # no padding enc
-test_type[0]='expmod_raw_enc'
+test_type[0]='raw_enc'
 test_nbarg[0]=3
-test_usage[0]='sh launch.sh expmod_raw_enc key_len nb_tests'
+test_usage[0]='sh launch.sh raw_enc key_len nb_tests'
 # no padding pipe enc dec
-test_type[1]='expmod_raw_encdec'
+test_type[1]='raw_encdec'
 test_nbarg[1]=3
-test_usage[1]='sh launch.sh expmod_raw_encdec key_len nb_tests'
-# PKCS#1 v1.5 padding pipe enc(square-and-multiply) dec(Chinese remainder algorithm based on the CRT)
-test_type[2]='expmod_pad_encdec'
+test_usage[1]='sh launch.sh raw_encdec key_len nb_tests'
+# PKCS#1 v1.5 padding pipe enc dec
+test_type[2]='pad_encdec'
 test_nbarg[2]=3
-test_usage[2]='sh launch.sh expmod_pad_encdec key_len nb_tests'
+test_usage[2]='sh launch.sh pad_encdec key_len nb_tests'
 
 nb_type=3
 # $1 : type of the test
@@ -72,13 +75,15 @@ fi
 err64="don't use key size < 64"
 err512="don't use key size < 512"
 
-expmod_raw_enc() {
+raw_enc() {
+
 key_bit_len=$2
-key_byte_len=$((1 + (key_bit_len - 1) / 8))
+#if ((key_bit_len < 64));then echo -e "${KRED}${err64}${KNRM}"; ft_exit; fi
 #./ft_ssl genrsa -out key.pem $key_bit_len 
-#if (($? != 0));then echo -e "${KRED}${err64}${KNRM}"; ft_exit; fi
+if ((key_bit_len < 512));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
 openssl genrsa -out key.pem $key_bit_len 2>/dev/null
-if (($? != 0));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
+
+key_byte_len=$((1 + (key_bit_len - 1) / 8))
 
 echo -ne "\x00" > data.ref
 data_byte_len=$((key_byte_len - 1))
@@ -91,13 +96,15 @@ diff data_enc.ft_ssl data_enc.openssl >/dev/null 2>&1
 
 }
 
-expmod_raw_encdec() {
+raw_encdec() {
+
 key_bit_len=$2
-key_byte_len=$((1 + (key_bit_len - 1) / 8))
+#if ((key_bit_len < 64));then echo -e "${KRED}${err64}${KNRM}"; ft_exit; fi
 #./ft_ssl genrsa -out key.pem $key_bit_len 
-#if (($? != 0));then echo -e "${KRED}${err64}${KNRM}"; ft_exit; fi
+if ((key_bit_len < 512));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
 openssl genrsa -out key.pem $key_bit_len 2>/dev/null
-if (($? != 0));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
+
+key_byte_len=$((1 + (key_bit_len - 1) / 8))
 
 echo -ne "\x00" > data.ref
 data_byte_len=$((key_byte_len - 1))
@@ -108,18 +115,20 @@ diff data.ref data.ft_ssl >/dev/null 2>&1
 
 }
 
-expmod_pad_encdec() {
+pad_encdec() {
+
 key_bit_len=$2
+#if ((key_bit_len < 64));then echo -e "${KRED}${err64}${KNRM}"; ft_exit; fi
+#./ft_ssl genrsa -out key.pem $key_bit_len 
+if ((key_bit_len < 512));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
+openssl genrsa -out key.pem $key_bit_len 2>/dev/null
+
 key_byte_len=$((1 + (key_bit_len - 1) / 8))
 echo -e "${KYEL}(key_bit_len, key_byte_len) = ($key_bit_len, $key_byte_len)$KNRM"
 if ((key_byte_len < 11)); then
 echo -e "${KRED}key_byte_len must be >= 11$KNRM"
 ft_exit
 fi
-#./ft_ssl genrsa -out key.pem $key_bit_len 
-#if (($? != 0));then echo -e "${KRED}${err64}${KNRM}"; ft_exit; fi
-openssl genrsa -out key.pem $key_bit_len 2>/dev/null
-if (($? != 0));then echo -e "${KRED}${err512}${KNRM}"; ft_exit; fi
 
 data_byte_len=$((RANDOM % (key_byte_len - 11 + 1)))
 echo -e "${KCYN}data_byte_len = $data_byte_len ---> randomely chosen to be at least 11 byte smaller than key_byte_len$KNRM"

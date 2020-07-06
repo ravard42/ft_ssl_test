@@ -22,6 +22,7 @@ if (($? == 0));then
 echo -e "${KGRN}ft_ssl successfully built and ready to be tested$KNRM\n"
 else
 echo -e "${KRED}error in ft_ssl compilation      $KNRM\n"
+exit
 fi
 cp $make_dir/ft_ssl ./ 
 #<<<< MAKING ./FT_SSL <<<<<<
@@ -32,27 +33,26 @@ ls | grep -v launch.sh | xargs rm
 exit
 }
 
-
 #>>>>> INPUT PARSER >>>>>
-
 if [[ $1 != "genrsa" ]] || (( $# != 3 )); then
 echo -e "${KYEL}usage: sh launch.sh genrsa numbits nb_tests${KNRM}"
 exit
 fi
 # $2 : size of modulus in bits
+err64="don't use key size < 64"
 numbits=$2
+if ((numbits < 64 ));then echo -e "${KRED}${err64}${KNRM}"; ft_exit; fi
 # $3 : numb of tests
 nb_tests=$3
 #<<<<< INPUT PARSER <<<<<<
 
 #>>>>> TEST FUNCTIONS >>>>>>
-err64="don't use key size < 64"
-
 genrsa() {
 ./ft_ssl genrsa $numbits > rsak.pem
-if (($? != 0));then echo -e "${KRED}${err64}${KNRM}"; ft_exit; fi
-openssl rsa -check -in rsak.pem | grep ok >/dev/null
+if (($? != 0));then echo -e "${KRED}ft_ssl genrsa error${KNRM}"; ft_exit; fi
+openssl rsa -check -in rsak.pem -noout | grep ok >/dev/null
 }
+#<<<<< TEST FUNCTIONS <<<<<<
 
 #>>>>>> MAIN >>>>>>
 i=0
@@ -68,6 +68,7 @@ if (($? == 0)); then ((ok += 1)); fi
 if ((i != ok)); then col=$KRED; fi
 echo -ne "									${col}genrsa:	${ok}/${nb_tests}${KNRM}"
 echo -ne "\r"
+
 done
 
 if ((i == ok)); then col=$KGRN; fi

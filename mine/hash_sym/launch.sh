@@ -21,6 +21,7 @@ if (($? == 0));then
 echo -e "${KGRN}ft_ssl successfully built and ready to be tested$KNRM\n"
 else
 echo -e "${KRED}error in ft_ssl compilation      $KNRM\n"
+exit
 fi
 cp $make_dir/ft_ssl ./ 
 
